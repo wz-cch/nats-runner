@@ -2,22 +2,238 @@
 
 A zero-dependency CLI tool for sending NATS messages driven by TOML templates and a 4-level variable resolution engine.
 
-> 零依賴的 NATS 訊息發送 CLI 工具，以 TOML 模板為驅動，搭配四層變數解析引擎。
+也提供[正體中文說明](README.zh-TW.md)。
 
 ---
 
-## Table of Contents · 目錄
+## Table of Contents
 
-- [Features · 功能特色](#features--功能特色)
-- [Installation · 安裝](#installation--安裝)
-- [Configuration · 設定](#configuration--設定)
-- [Usage · 使用方式](#usage--使用方式)
-- [Templates · 模板格式](#templates--模板格式)
-- [Variable Resolution · 變數解析](#variable-resolution--變數解析)
-- [Authentication · 認證模式](#authentication--認證模式)
-- [Examples · 範例](#examples--範例)
-- [Development · 開發](#development--開發)
-- [Project Structure · 專案結構](#project-structure--專案結構)
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Templates](#templates)
+- [Variable Resolution](#variable-resolution)
+- [Authentication](#authentication)
+- [Examples](#examples)
+- [Project Structure](#project-structure)
+
+---
+
+## Features
+
+- Three NATS delivery modes: **Request-Reply**, **Publish**, **JetStream**
+- TOML-driven templates — no recompilation needed for new API calls
+- 4-level variable resolution: CLI args → template defaults → shell functions → built-ins
+- Built-in variables: `{{uuid}}`, `{{now}}`, `{{now_ms}}`, `{{now_iso}}`
+- Shell function integration with per-run result caching
+- Authentication: `creds`, `token`, `nkey`, `none`
+- TLS support: CA cert, mTLS, insecure skip
+- JetStream stream auto-creation
+- Single static binary — no runtime dependencies
+
+---
+
+## Installation
+
+Requires Go 1.21+
+
+```bash
+git clone https://github.com/wz-cch/nats-runner.git
+cd nats-runner
+
+# Linux / AMD64
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -ldflags "-X main.version=1.0.0" -o nats-runner .
+
+# Linux / ARM64
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+  go build -ldflags "-X main.version=1.0.0" -o nats-runner-arm64 .
+```
+
+```bash
+./nats-runner --version
+```
+
+---
+
+## Configuration
+
+Create a config file at `~/.nats-runner.toml` (or specify with `-c`):
+
+```toml
+[connection]
+url            = "nats://nats-cluster.example.com:4222"
+auth_mode      = "creds"   # creds | token | nkey | none
+creds_file     = "./auth/user.creds"
+token          = ""
+nkey_seed_file = ""
+timeout_ms     = 5000
+
+[connection.tls]
+ca_cert              = ""
+client_cert          = ""
+client_key           = ""
+insecure_skip_verify = false
+
+[functions]
+uuid = "uuidgen"   # shell command — result is cached per variable name per run
+```
+
+See [`configs/metering.toml`](configs/metering.toml) for a full example.
+
+### Manage config path
+
+```bash
+./nats-runner config set /path/to/config.toml   # store as global default
+./nats-runner config show                        # display current default
+```
+
+---
+
+## Usage
+
+```
+nats-runner [flags] -t <template> -n <entry> [key=value ...]
+```
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `-t` | Path to TOML template file | ✓ |
+| `-n` | Template entry name | ✓ |
+| `-c` | Config file path (overrides default) | — |
+| `--version` | Show version | — |
+
+Extra `key=value` arguments are passed as variables and override template defaults.
+
+---
+
+## Templates
+
+One TOML file per domain, one section per operation. See [`templates/`](templates/) for real-world examples.
+
+```toml
+[entry_name]
+subject  = "nats.subject.path"
+mode     = "req"               # req | pub | js
+defaults = { role = "member" }
+body     = '''
+{
+  "id":   "{{uuid}}",
+  "role": "{{role}}"
+}
+'''
+
+# JetStream only — optional stream auto-creation
+[entry_name.stream]
+create   = true
+name     = "STREAM_NAME"
+subjects = ["pattern.*"]
+storage  = "file"              # file | memory
+```
+
+| Mode | Behaviour |
+|------|-----------|
+| `req` | Request-Reply — waits for response, prints pretty JSON |
+| `pub` | Publish — fire-and-forget, prints confirmation |
+| `js`  | JetStream publish — prints sequence number |
+
+---
+
+## Variable Resolution
+
+Variables in `{{name}}` placeholders are resolved in this priority order (highest → lowest):
+
+```
+1. CLI key=value params
+2. defaults in template entry
+3. [functions] in config.toml  (shell commands, result cached per run)
+4. Built-in variables
+```
+
+| Built-in | Value |
+|----------|-------|
+| `{{uuid}}`    | Random UUID v4 |
+| `{{now}}`     | Unix timestamp (seconds) |
+| `{{now_ms}}`  | Unix timestamp (milliseconds) |
+| `{{now_iso}}` | ISO 8601 / RFC3339 (UTC) |
+
+> `{{uuid}}` appearing multiple times in one body returns the **same value** (cached per run).  
+> Use distinct names (`{{uuid2}}`, `{{uuid3}}`) for independent UUIDs.
+
+An unresolved variable exits with code 1 and an error on stderr.
+
+---
+
+## Authentication
+
+| `auth_mode` | Required field |
+|-------------|----------------|
+| `creds` | `creds_file` |
+| `token` | `token` |
+| `nkey`  | `nkey_seed_file` (`.nk` seed file only — public key is auto-derived) |
+| `none`  | — |
+
+---
+
+## Examples
+
+### Request-Reply
+
+```bash
+./nats-runner -t templates/srp_types.toml -n create \
+  srp_type=ai-service-package \
+  description="AI Service Package" \
+  resource1=api resource2=compute \
+  metric_field=aitoken
+```
+
+### Publish
+
+```bash
+./nats-runner -t templates/usage_report.toml -n submit \
+  tenant_id=tenant-001 resource=compute amount=500
+```
+
+### JetStream
+
+```bash
+./nats-runner -t templates/usage_stats.toml -n record \
+  tenant_id=tenant-001 stat_key=api_calls value=1200
+```
+
+### Python helper for complex payloads
+
+```bash
+python scripts/run_with_metrics.py
+```
+
+Edit `CONFIG` inside [`scripts/run_with_metrics.py`](scripts/run_with_metrics.py) to customise the payload.
+
+---
+
+## Project Structure
+
+```
+nats-runner.go     — Entry point
+internal/
+  cli/             — CLI commands (root, config)
+  config/          — TOML config loader
+  domain/          — Core types (zero dependencies)
+  nats/            — NATS connection & executors
+  template/        — Template loader
+  vars/            — Variable resolver
+templates/         — TOML template files (one per domain)
+configs/           — Example config files
+scripts/           — Python helper scripts
+```
+
+---
+
+## License
+
+MIT
+
 
 ---
 
