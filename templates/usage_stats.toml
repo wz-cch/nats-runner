@@ -1,0 +1,112 @@
+# Usage Stats 用量查詢模板
+# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）、{{now_iso}}（RFC3339）、{{now}}（epoch s）
+#
+# 時間參數格式：ISO 8601（如 "2026-05-01T00:00:00Z"）或 Epoch 毫秒（如 1746057600000）
+#
+# 使用範例：
+#   # 查詢指定 Tenant 的 SRP 用量
+#   ./nats-runner -t templates/usage_stats.toml -n srp_by_tenant \
+#       srp_type=ai-service-package tenant_id=testtenant001 \
+#       start_time=2026-05-01T00:00:00Z end_time=2026-05-31T23:59:59Z
+#
+#   # 查詢所有 Tenant 的 SRP 聚合用量（分頁）
+#   ./nats-runner -t templates/usage_stats.toml -n srp_all_tenants \
+#       srp_type=ai-service-package \
+#       start_time=2026-05-01T00:00:00Z end_time=2026-05-31T23:59:59Z \
+#       skip_count=0 max_result_count=50
+#
+#   # 查詢指定 Tenant 的 Resource 用量
+#   ./nats-runner -t templates/usage_stats.toml -n resource_by_tenant \
+#       resource_type=compute tenant_id=testtenant001 \
+#       start_time=2026-05-01T00:00:00Z end_time=2026-05-31T23:59:59Z
+#
+#   # 查詢所有 Tenant 的 Resource 聚合用量
+#   ./nats-runner -t templates/usage_stats.toml -n resource_all_tenants \
+#       resource_type=api \
+#       start_time=2026-05-01T00:00:00Z end_time=2026-05-31T23:59:59Z
+
+# ----------------------------------------------------------------
+# SRP 用量查詢 — 指定 Tenant（SRP 視角）
+# ----------------------------------------------------------------
+[srp_by_tenant]
+subject = "eco1j.infra.metering.usage-stats.srp"
+mode    = "req"
+defaults = { skip_count = "0", max_result_count = "20" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":        "{{srp_type}}",
+    "tenantId":       "{{tenant_id}}",
+    "startTime":      "{{start_time}}",
+    "endTime":        "{{end_time}}",
+    "skipCount":      {{skip_count}},
+    "maxResultCount": {{max_result_count}}
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# SRP 用量查詢 — 全部 Tenant 聚合（不帶 tenantId）
+# ----------------------------------------------------------------
+[srp_all_tenants]
+subject = "eco1j.infra.metering.usage-stats.srp"
+mode    = "req"
+defaults = { skip_count = "0", max_result_count = "20" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":        "{{srp_type}}",
+    "startTime":      "{{start_time}}",
+    "endTime":        "{{end_time}}",
+    "skipCount":      {{skip_count}},
+    "maxResultCount": {{max_result_count}}
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# Resource 用量查詢 — 指定 Tenant（供應商視角）
+# ----------------------------------------------------------------
+[resource_by_tenant]
+subject = "eco1j.infra.metering.usage-stats.resource"
+mode    = "req"
+defaults = { skip_count = "0", max_result_count = "20" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "resourceType":   "{{resource_type}}",
+    "tenantId":       "{{tenant_id}}",
+    "startTime":      "{{start_time}}",
+    "endTime":        "{{end_time}}",
+    "skipCount":      {{skip_count}},
+    "maxResultCount": {{max_result_count}}
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# Resource 用量查詢 — 全部 Tenant 聚合（供應商跨 Tenant 視角）
+# ----------------------------------------------------------------
+[resource_all_tenants]
+subject = "eco1j.infra.metering.usage-stats.resource"
+mode    = "req"
+defaults = { skip_count = "0", max_result_count = "20" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "resourceType":   "{{resource_type}}",
+    "startTime":      "{{start_time}}",
+    "endTime":        "{{end_time}}",
+    "skipCount":      {{skip_count}},
+    "maxResultCount": {{max_result_count}}
+  }
+}
+"""

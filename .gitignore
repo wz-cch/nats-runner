@@ -1,0 +1,29 @@
+# Compiled binaries
+nats-runner
+nats-runner-*
+main
+
+# Go test artifacts
+*.test
+*.out
+coverage.html
+
+# Go module download cache
+vendor/
+
+# Environment and secrets
+*.env
+*.creds
+*.nk
+*.pem
+*.key
+
+# Config files with credentials (use configs/example.toml as reference)
+configs/local.toml
+~/.nats-runner.toml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

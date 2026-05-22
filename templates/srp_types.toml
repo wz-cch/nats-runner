@@ -1,0 +1,151 @@
+# SRPType 管理模板
+# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）、{{now_iso}}（RFC3339）、{{now}}（epoch s）
+#
+# 使用範例（建立含 2 個 resource 的 SRPType）：
+#   ./nats-runner -t templates/srp_types.toml -n create \
+#       srp_type=ai-service-package description="AI 服務包" \
+#       resource1=api resource2=compute \
+#       metric_field=aitoken
+#
+# 若 SRPType 僅含 1 個 resource，請改用 create_single_resource
+#
+#   ./nats-runner -t templates/srp_types.toml -n get    srp_type=ai-service-package
+#   ./nats-runner -t templates/srp_types.toml -n list
+#   ./nats-runner -t templates/srp_types.toml -n update srp_type=ai-service-package description="新說明"
+#   ./nats-runner -t templates/srp_types.toml -n delete srp_type=ai-service-package
+
+# ----------------------------------------------------------------
+# 建立 SRPType（含 2 個 resource、單一 metric）
+# 注意：resources 中所有 ResourceType 必須預先存在
+# ----------------------------------------------------------------
+[create]
+subject = "eco1j.infra.metering.srp-types.create"
+mode    = "req"
+defaults = { metric_type = "sum" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":     "{{srp_type}}",
+    "description": "{{description}}",
+    "resources":   ["{{resource1}}", "{{resource2}}"],
+    "metrics": [
+      {
+        "field": "{{metric_field}}",
+        "type":  "{{metric_type}}"
+      }
+    ]
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# 建立 SRPType（支援外部傳入複數 metrics）
+# 使用變數 `metrics` 傳入 JSON array，例如：
+#   metrics='[{"field":"a","type":"sum"},{"field":"b","type":"sum"}]'
+# ----------------------------------------------------------------
+[create_multi_metrics]
+subject = "eco1j.infra.metering.srp-types.create"
+mode    = "req"
+defaults = { }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":     "{{srp_type}}",
+    "description": "{{description}}",
+    "resources":   [{{resource_list}}],
+    "metrics": {{metrics}}
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# 建立 SRPType（含 1 個 resource）
+# ----------------------------------------------------------------
+[create_single_resource]
+subject = "eco1j.infra.metering.srp-types.create"
+mode    = "req"
+defaults = { metric_type = "sum" }
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":     "{{srp_type}}",
+    "description": "{{description}}",
+    "resources":   ["{{resource1}}"],
+    "metrics": [
+      {
+        "field": "{{metric_field}}",
+        "type":  "{{metric_type}}"
+      }
+    ]
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# 查詢單一 SRPType
+# ----------------------------------------------------------------
+[get]
+subject = "eco1j.infra.metering.srp-types.get"
+mode    = "req"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType": "{{srp_type}}"
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# 查詢全部 SRPType
+# ----------------------------------------------------------------
+[list]
+subject = "eco1j.infra.metering.srp-types.list"
+mode    = "req"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {}
+}
+"""
+
+# ----------------------------------------------------------------
+# 更新 SRPType（srpType 為必要欄位）
+# ----------------------------------------------------------------
+[update]
+subject = "eco1j.infra.metering.srp-types.update"
+mode    = "req"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType":     "{{srp_type}}",
+    "description": "{{description}}"
+  }
+}
+"""
+
+# ----------------------------------------------------------------
+# 刪除 SRPType
+# ----------------------------------------------------------------
+[delete]
+subject = "eco1j.infra.metering.srp-types.delete"
+mode    = "req"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "srpType": "{{srp_type}}"
+  }
+}
+"""

@@ -1,0 +1,94 @@
+# Usage Report 通用上報模板（JetStream Fire-and-Forget）
+# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）
+#
+# ── 欄位說明 ─────────────────────────────────────────────────────
+#   tenant_id     租戶 ID
+#   resource_type 資源類型名稱（ResourceType）
+#   resource_id   SRP 名稱（resourceId）
+#   metric_key    指標欄位名稱（對應 ResourceType 中定義的 metrics[].field）
+#   metric_value  指標數值（整數，不加引號）
+#   meta_key      metadata 鍵（選填）
+#   meta_value    metadata 值（選填）
+#
+# ── 使用範例 ─────────────────────────────────────────────────────
+#   # 基本上報（無 metadata）
+#   ./nats-runner -t templates/usage_report.toml -n create \
+#       tenant_id=testtenant001 resource_type=api resource_id=my-srp \
+#       metric_key=api-call metric_value=5
+#
+#   # 附帶 metadata
+#   ./nats-runner -t templates/usage_report.toml -n create_with_meta \
+#       tenant_id=testtenant001 resource_type=api resource_id=my-srp \
+#       metric_key=api-call metric_value=5 \
+#       meta_key=path meta_value=/api/v1
+
+# ----------------------------------------------------------------
+# 上報單筆用量（無 metadata）
+# ----------------------------------------------------------------
+[create]
+subject = "eco1j.infra.metering.usage.create"
+mode    = "js"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "usages": [
+      {
+        "tenantId":     "{{tenant_id}}",
+        "resourceType": "{{resource_type}}",
+        "resourceId":   "{{resource_id}}",
+        "metrics": {
+          "{{metric_key}}": {{metric_value}}
+        },
+        "timestamp": {{now_ms}}
+      }
+    ]
+  }
+}
+"""
+
+[create.stream]
+create          = true
+name            = "METERING-USAGE"
+subjects        = ["eco1j.infra.metering.usage.>"]
+storage         = "file"
+max_age_seconds = 2592000
+max_msgs        = 10000000
+
+# ----------------------------------------------------------------
+# 上報單筆用量（附帶 metadata）
+# ----------------------------------------------------------------
+[create_with_meta]
+subject = "eco1j.infra.metering.usage.create"
+mode    = "js"
+body = """
+{
+  "reqSeqId":  "{{uuid}}",
+  "timestamp": {{now_ms}},
+  "data": {
+    "usages": [
+      {
+        "tenantId":     "{{tenant_id}}",
+        "resourceType": "{{resource_type}}",
+        "resourceId":   "{{resource_id}}",
+        "metrics": {
+          "{{metric_key}}": {{metric_value}}
+        },
+        "metadata": {
+          "{{meta_key}}": "{{meta_value}}"
+        },
+        "timestamp": {{now_ms}}
+      }
+    ]
+  }
+}
+"""
+
+[create_with_meta.stream]
+create          = true
+name            = "METERING-USAGE"
+subjects        = ["eco1j.infra.metering.usage.>"]
+storage         = "file"
+max_age_seconds = 2592000
+max_msgs        = 10000000
