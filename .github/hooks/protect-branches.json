@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "bash -c 'TOOL=$(echo \"$HOOK_TOOL_NAME\" | tr -d \"\\n\"); if [ \"$TOOL\" = \"run_in_terminal\" ]; then INPUT=$(cat); CMD=$(echo \"$INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null || echo \"\"); BRANCH=$(git -C /home/vscode/projects/nats-runner rev-parse --abbrev-ref HEAD 2>/dev/null); if echo \"$CMD\" | grep -qE \"git (commit|push|merge)\"; then if [ \"$BRANCH\" = \"main\" ] || [ \"$BRANCH\" = \"develop\" ]; then echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PreToolUse\\\",\\\"permissionDecision\\\":\\\"ask\\\",\\\"permissionDecisionReason\\\":\\\"You are on protected branch ($BRANCH). Direct commits/pushes to main or develop are not allowed. Create a feature branch first: git checkout -b feat/<name>\\\"}}\"; exit 0; fi; fi; echo \"$INPUT\"; fi'",
+        "timeout": 5
+      }
+    ]
+  }
+}

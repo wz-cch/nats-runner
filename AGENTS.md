@@ -75,3 +75,35 @@ storage  = "file"          # "file" | "memory"
 - **`{{uuid}}` appears twice** in one body → same value (cached). Use `{{uuid2}}` etc. for distinct values.
 - **nkey mode**: only the seed file (`.nk`) is required; the public key is derived automatically.
 - **Version** is injected at build time via `-ldflags`; binary shows `dev` if built without it.
+
+---
+
+## Git Workflow
+
+**Repository:** `https://github.com/wz-cch/nats-runner`
+
+### Branch model
+| Branch | Purpose | Direct push |
+|--------|---------|-------------|
+| `main` | Stable releases only | ✗ — PR only |
+| `develop` | Integration branch | ✗ — PR only |
+| `feat/<short-name>` | New features | ✓ |
+| `fix/<short-name>` | Bug fixes | ✓ |
+| `chore/<short-name>` | Maintenance (deps, CI, docs) | ✓ |
+
+### Rules
+- **Never commit directly to `main` or `develop`** — always open a PR.
+- Branch from `develop`; target `develop` on PR; merge `develop` → `main` for releases.
+- Commit messages **must be in English**, follow [Conventional Commits](https://www.conventionalcommits.org/):
+  `feat(scope): add X`, `fix(scope): resolve Y`, `chore: update Z`
+- Subject line ≤ 72 characters, imperative mood.
+- Do **not** commit compiled binaries (`main`, `nats-runner`, `nats-runner-*`), credentials (`*.creds`, `*.nk`), or local configs.
+
+### Workflow (agent steps)
+1. `git checkout develop && git pull origin develop`
+2. `git checkout -b feat/<name>`
+3. Make changes → `go test ./...` passes
+4. `git add <only relevant files>` — never `git add .` blindly
+5. Commit with English Conventional Commit message
+6. `git push origin feat/<name>`
+7. Open PR targeting `develop` on GitHub
