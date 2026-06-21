@@ -1,6 +1,7 @@
 package vars
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,8 +50,12 @@ func loadJSON(path string) (map[string]any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read values file %q: %w", path, err)
 	}
+	// UseNumber keeps numbers as json.Number (a string) instead of float64, so
+	// integers render exactly (e.g. 1000000, not 1e+06) when injected into a body.
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
 	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("failed to parse values file %q: %w", path, err)
 	}
 	return m, nil
