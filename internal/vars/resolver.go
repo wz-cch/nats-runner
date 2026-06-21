@@ -60,32 +60,44 @@ type ResolveContext struct {
 // output looks like JSON, it is validated and a clear error is returned if it
 // is malformed (commonly an unescaped string value — use {{ .field | toJson }}).
 func Resolve(body string, ctx ResolveContext) (string, error) {
+	out, _, err := resolve(body, ctx)
+	return out, err
+}
+
+// ResolveWithValues behaves like Resolve but also returns the resolved data map
+// — the effective value of every variable referenced by body. Callers use it to
+// record what was actually sent (see logger.Entry.Values).
+func ResolveWithValues(body string, ctx ResolveContext) (string, map[string]any, error) {
+	return resolve(body, ctx)
+}
+
+func resolve(body string, ctx ResolveContext) (string, map[string]any, error) {
 	tmpl, err := template.New("body").
 		Funcs(buildFuncMap()).
 		Option("missingkey=error").
 		Parse(body)
 	if err != nil {
-		return "", fmt.Errorf("template parse error: %w", err)
+		return "", nil, fmt.Errorf("template parse error: %w", err)
 	}
 
 	referenced := referencedFields(tmpl)
 	data, err := buildDataMap(ctx, referenced)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("template render error: %w", err)
+		return "", data, fmt.Errorf("template render error: %w", err)
 	}
 	out := buf.String()
 
 	if looksLikeJSON(out) && !json.Valid([]byte(out)) {
-		return "", fmt.Errorf(
+		return "", data, fmt.Errorf(
 			"rendered payload is not valid JSON; check that string values are escaped "+
 				"(e.g. use {{ .field | toJson }} for free-text fields):\n%s", out)
 	}
-	return out, nil
+	return out, data, nil
 }
 
 // ReferencedVars returns the sorted, unique data-variable names ({{ .key }})

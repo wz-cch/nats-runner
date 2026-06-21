@@ -10,15 +10,15 @@ import (
 	natsgo "github.com/nats-io/nats.go"
 )
 
-// Connect establishes a NATS connection using settings from AppConfig.
-func Connect(cfg *domain.AppConfig) (*natsgo.Conn, error) {
-	opts, err := BuildOptions(cfg)
+// Connect establishes a NATS connection using settings from a ConnectionConfig.
+func Connect(conn *domain.ConnectionConfig) (*natsgo.Conn, error) {
+	opts, err := BuildOptions(conn)
 	if err != nil {
 		return nil, err
 	}
-	nc, err := natsgo.Connect(cfg.Connection.URL, opts...)
+	nc, err := natsgo.Connect(conn.URL, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", cfg.Connection.URL, err)
+		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", conn.URL, err)
 	}
 	return nc, nil
 }

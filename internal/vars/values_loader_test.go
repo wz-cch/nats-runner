@@ -64,3 +64,23 @@ func TestLoadValuesFiles_UnsupportedExtension(t *testing.T) {
 		t.Fatal("expected error for unsupported extension")
 	}
 }
+
+// ResolveWithValues returns the effective value of every referenced variable.
+func TestResolveWithValues_ReturnsData(t *testing.T) {
+	body := `{"id": "{{ .id }}", "role": "{{ .role }}"}`
+	out, values, err := ResolveWithValues(body, ctx(
+		map[string]string{"id": "42"},
+		nil,
+		map[string]string{"role": "member"},
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, `"42"`) {
+		t.Errorf("unexpected output: %s", out)
+	}
+	if values["id"] != "42" || values["role"] != "member" {
+		t.Errorf("resolved values incomplete: %v", values)
+	}
+}

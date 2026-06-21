@@ -2,13 +2,6 @@
 // This package has no dependencies on external libraries or other internal packages.
 package domain
 
-// AppConfig is the runtime-assembled application configuration passed to the
-// NATS connection layer. Shell functions are resolved separately via the vars
-// package and are not part of this struct.
-type AppConfig struct {
-	Connection ConnectionConfig
-}
-
 // ConnectionConfig holds NATS connection and authentication settings.
 // It is decoded from the [connection] section of a configs/<name>.toml file.
 type ConnectionConfig struct {
@@ -30,12 +23,13 @@ type TLSConfig struct {
 	InsecureSkipVerify bool   `toml:"insecure_skip_verify"`
 }
 
-// GlobalConfig is decoded from ~/.nats-runner.toml.
+// GlobalConfig is decoded from ~/.nats-runner.toml. The omitempty tags let the
+// TOML encoder skip unset fields when SaveGlobalConfig writes the file back.
 type GlobalConfig struct {
-	DefaultConnection string `toml:"default_connection"`
-	TemplateDir       string `toml:"template_dir"`
-	FuncsDir          string `toml:"funcs_dir"`
-	ValuesDir         string `toml:"values_dir"`
+	DefaultConnection string `toml:"default_connection,omitempty"`
+	TemplateDir       string `toml:"template_dir,omitempty"`
+	FuncsDir          string `toml:"funcs_dir,omitempty"`
+	ValuesDir         string `toml:"values_dir,omitempty"`
 }
 
 // FuncConfig corresponds to a single funcs/<name>.toml file.

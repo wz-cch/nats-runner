@@ -2,6 +2,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,12 +24,11 @@ type ConnectionInfo struct {
 // Priority: flagVal (name or path) > gc.DefaultConnection > error.
 // gc is the already-loaded global config (pass the result of LoadGlobalConfig);
 // it is used only to look up the default connection when flagVal is empty.
-// Returns the config and a human-readable source label for config show.
-func ResolveConnection(flagVal string, gc *domain.GlobalConfig) (*domain.ConnectionConfig, string, error) {
+func ResolveConnection(flagVal string, gc *domain.GlobalConfig) (*domain.ConnectionConfig, error) {
 	name := flagVal
 	if name == "" {
 		if gc == nil || gc.DefaultConnection == "" {
-			return nil, "", fmt.Errorf(
+			return nil, fmt.Errorf(
 				"no connection specified; use -c <name> or run \"nats-runner config set <name>\" first",
 			)
 		}
@@ -37,10 +37,9 @@ func ResolveConnection(flagVal string, gc *domain.GlobalConfig) (*domain.Connect
 	path := ResolveConnPath(name)
 	cfg, err := LoadConnectionFile(path)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	label := fmt.Sprintf("%s (%s)", name, path)
-	return cfg, label, nil
+	return cfg, nil
 }
 
 // LoadConnectionFile reads and validates a configs/<name>.toml file.
@@ -132,24 +131,14 @@ func SaveGlobalConfig(gc *domain.GlobalConfig) error {
 	if err != nil {
 		return err
 	}
-	var lines []string
-	if existing.DefaultConnection != "" {
-		lines = append(lines, fmt.Sprintf("default_connection = %q", existing.DefaultConnection))
+	// Encode via the TOML library (the omitempty tags drop unset fields) rather
+	// than hand-formatting with %q, which is not guaranteed valid TOML for paths
+	// containing backslashes or other special characters.
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(existing); err != nil {
+		return fmt.Errorf("encoding global config: %w", err)
 	}
-	if existing.TemplateDir != "" {
-		lines = append(lines, fmt.Sprintf("template_dir = %q", existing.TemplateDir))
-	}
-	if existing.FuncsDir != "" {
-		lines = append(lines, fmt.Sprintf("funcs_dir = %q", existing.FuncsDir))
-	}
-	if existing.ValuesDir != "" {
-		lines = append(lines, fmt.Sprintf("values_dir = %q", existing.ValuesDir))
-	}
-	content := strings.Join(lines, "\n")
-	if content != "" {
-		content += "\n"
-	}
-	return os.WriteFile(path, []byte(content), 0600)
+	return os.WriteFile(path, buf.Bytes(), 0600)
 }
 
 // globalConfigPath returns the absolute path of ~/.nats-runner.toml.

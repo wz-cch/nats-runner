@@ -495,6 +495,17 @@ func trimLastRune(s string) string {
 	return string(r[:len(r)-1])
 }
 
+// truncateRunes shortens s to at most max runes (not bytes), appending an
+// ellipsis when truncated. Slicing by rune avoids splitting multi-byte
+// characters, which would otherwise corrupt non-ASCII replies in the monitor.
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "…"
+}
+
 func isDigits(s string) bool {
 	if s == "" {
 		return false

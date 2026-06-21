@@ -21,7 +21,11 @@ func (m Model) viewForm() string {
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
 	var b strings.Builder
-	b.WriteString(Styles.Title.Render("nats-runner · interactive") + "\n")
+	title := "nats-runner · interactive"
+	if m.version != "" {
+		title = "nats-runner " + m.version + " · interactive"
+	}
+	b.WriteString(Styles.Title.Render(title) + "\n")
 	b.WriteString(panes + "\n")
 	if cli := buildCLI(m); cli != "" {
 		b.WriteString(Styles.CLIBox.Width(leftW+rightW+2).Render("$ "+cli) + "\n")
@@ -265,10 +269,11 @@ func wrap(s string, width int) string {
 		width = 8
 	}
 	var b strings.Builder
-	for len(s) > width {
-		b.WriteString(s[:width] + "\n")
-		s = s[width:]
+	r := []rune(s)
+	for len(r) > width {
+		b.WriteString(string(r[:width]) + "\n")
+		r = r[width:]
 	}
-	b.WriteString(s)
+	b.WriteString(string(r))
 	return b.String()
 }

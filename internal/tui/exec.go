@@ -77,7 +77,15 @@ func (m Model) startExec() (tea.Model, tea.Cmd) {
 	var interval time.Duration
 	if m.loopEnabled {
 		count = parseCount(m.countStr)
-		if d, err := time.ParseDuration(m.intervalStr); err == nil {
+		switch s := strings.TrimSpace(m.intervalStr); s {
+		case "", "0":
+			interval = 0
+		default:
+			d, err := time.ParseDuration(s)
+			if err != nil {
+				m.status = fmt.Sprintf("invalid interval %q (e.g. 60s, 500ms)", s)
+				return m, nil
+			}
 			interval = d
 		}
 	}
@@ -117,7 +125,7 @@ func runExec(ctx context.Context, ch chan<- execEvent, connCfg domain.Connection
 	entry domain.TemplateEntry, rctx vars.ResolveContext, count int, interval time.Duration, timeoutMs int) {
 	defer close(ch)
 
-	nc, err := natsclient.Connect(&domain.AppConfig{Connection: connCfg})
+	nc, err := natsclient.Connect(&connCfg)
 	if err != nil {
 		ch <- execEvent{result: ExecResult{Status: "ERR: " + err.Error()}, done: true}
 		return
@@ -139,7 +147,7 @@ func runExec(ctx context.Context, ch chan<- execEvent, connCfg domain.Connection
 		default:
 		}
 
-		payload, rerr := vars.Resolve(entry.Body, rctx)
+		payload, values, rerr := vars.ResolveWithValues(entry.Body, rctx)
 		start := time.Now()
 		var reply string
 		var execErr error
@@ -159,6 +167,7 @@ func runExec(ctx context.Context, ch chan<- execEvent, connCfg domain.Connection
 				Timestamp:   start,
 				Action:      entry.Mode,
 				Subject:     entry.Subject,
+				Values:      values,
 				RequestBody: payload,
 				Reply:       reply,
 				DurationMs:  elapsed,
@@ -166,10 +175,7 @@ func runExec(ctx context.Context, ch chan<- execEvent, connCfg domain.Connection
 			})
 		}
 
-		short := strings.ReplaceAll(reply, "\n", " ")
-		if len(short) > 80 {
-			short = short[:80] + "…"
-		}
+		short := truncateRunes(strings.ReplaceAll(reply, "\n", " "), 80)
 		isLast := count > 0 && i >= count
 		ch <- execEvent{
 			result:  ExecResult{Iteration: i, DurationMs: elapsed, Status: status, Reply: short},

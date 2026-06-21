@@ -85,8 +85,12 @@ func Execute(args []string, version string) {
 	gc, err := config.LoadGlobalConfig()
 	dieIfErr(err)
 
-	connCfg, _, err := config.ResolveConnection(*configPath, gc)
+	connCfg, err := config.ResolveConnection(*configPath, gc)
 	dieIfErr(err)
+
+	if connCfg.TLS.InsecureSkipVerify {
+		fmt.Fprintln(os.Stderr, "Warning: TLS certificate verification is disabled (insecure_skip_verify=true)")
+	}
 
 	funcs, err := config.ScanFunctions(gc.FuncsDir)
 	dieIfErr(err)
@@ -107,8 +111,7 @@ func Execute(args []string, version string) {
 		Functions:  funcs,
 	}
 
-	appCfg := &domain.AppConfig{Connection: *connCfg}
-	nc, err := natsclient.Connect(appCfg)
+	nc, err := natsclient.Connect(connCfg)
 	dieIfErr(err)
 	defer nc.Close()
 
@@ -164,7 +167,7 @@ func execLoop(
 		default:
 		}
 
-		payload, err := vars.Resolve(entry.Body, resolveCtx)
+		payload, values, err := vars.ResolveWithValues(entry.Body, resolveCtx)
 		start := time.Now()
 		var reply string
 
@@ -177,6 +180,7 @@ func execLoop(
 			Timestamp:   start,
 			Action:      entry.Mode,
 			Subject:     entry.Subject,
+			Values:      values,
 			RequestBody: payload,
 			Reply:       reply,
 			DurationMs:  elapsed,
