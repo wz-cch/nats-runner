@@ -215,12 +215,15 @@ in this priority order (highest → lowest):
 5. built-in functions            ← lowest
 ```
 
-| Built-in | Value |
-|----------|-------|
-| `{{ uuid }}`    | Random UUID v4 (fresh on every occurrence) |
-| `{{ now }}`     | Unix timestamp (seconds, UTC) |
-| `{{ now_ms }}`  | Unix timestamp (milliseconds, UTC) |
-| `{{ now_iso }}` | ISO 8601 / RFC3339 (UTC) |
+| Built-in | Value | In JSON |
+|----------|-------|---------|
+| `{{ uuid }}`    | Random UUID v4 (fresh on every occurrence) | string — quote it: `"{{ uuid }}"` |
+| `{{ now }}`     | Unix timestamp (seconds, UTC) | number — leave unquoted |
+| `{{ now_ms }}`  | Unix timestamp (milliseconds, UTC) | number — leave unquoted |
+| `{{ now_iso }}` | ISO 8601 / RFC3339 (UTC) | string — quote it: `"{{ now_iso }}"` |
+
+> `{{ uuid }}` and `{{ now_iso }}` emit strings and **must be quoted** in a JSON
+> body; an unquoted `{{ now_iso }}` produces invalid JSON.
 
 > The built-in `{{ uuid }}` produces a **different** value at each occurrence.
 > `{{ now }}`/`{{ now_ms }}`/`{{ now_iso }}` are captured once per run and stay

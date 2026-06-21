@@ -68,6 +68,7 @@ Bodies are rendered with Go `text/template`:
 - Built-in functions: `{{ uuid }}`, `{{ now }}`, `{{ now_ms }}`, `{{ now_iso }}` (no dot).
 - Pipes: `{{ .arr | toJson }}`, `{{ .s | trim }}`.
 - **JSON safety:** wrap free-text string fields in `{{ .field | toJson }}` (adds quotes + escapes). The renderer also validates that JSON-looking output is valid and errors clearly otherwise.
+- **String vs numeric builtins:** `{{ now }}` / `{{ now_ms }}` emit a bare number (use unquoted: `"ts": {{ now_ms }}`), but `{{ uuid }}` and `{{ now_iso }}` emit strings and must be quoted in JSON: `"id": "{{ uuid }}"`, `"at": "{{ now_iso }}"`. An unquoted `{{ now_iso }}` produces invalid JSON.
 
 ### Variable resolution order (highest → lowest)
 1. CLI `key=value` params
