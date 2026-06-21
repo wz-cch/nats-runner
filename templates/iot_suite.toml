@@ -2,7 +2,7 @@
 # 涵蓋：SRPType(iotsuite) CRUD、Usage Stats 查詢、用量上報
 # Metrics：tag、dashboard、user、eventrule（皆為 sum）
 #
-# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）
+# 內建變數：{{ uuid }}（UUID v4）、{{ now_ms }}（epoch ms）
 #
 # ── 快速上手 ─────────────────────────────────────────────────────
 #
@@ -38,11 +38,11 @@ mode     = "req"
 defaults = { srp_type = "iotsuite", description = "IoT Suite package" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}",
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }},
     "resources":   [],
     "metrics": [
       { "field": "tag",       "type": "sum" },
@@ -63,10 +63,10 @@ mode     = "req"
 defaults = { srp_type = "iotsuite" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """
@@ -79,8 +79,8 @@ subject = "eco1j.infra.metering.srp-types.list"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {}
 }
 """
@@ -94,11 +94,11 @@ mode     = "req"
 defaults = { srp_type = "iotsuite" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}"
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }}
   }
 }
 """
@@ -112,10 +112,10 @@ mode     = "req"
 defaults = { srp_type = "iotsuite" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """
@@ -134,14 +134,14 @@ mode     = "req"
 defaults = { srp_type = "iotsuite", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":        "{{srp_type}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "srpType":        "{{ .srp_type }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -156,15 +156,15 @@ mode     = "req"
 defaults = { srp_type = "iotsuite", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":        "{{srp_type}}",
-    "tenantId":       "{{tenant_id}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "srpType":        "{{ .srp_type }}",
+    "tenantId":       "{{ .tenant_id }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -188,21 +188,21 @@ mode     = "js"
 defaults = { resource_type = "iotsuite", resource_id = "iotsuite", tag = "0", dashboard = "0", user = "0", eventrule = "0" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
     "usages": [
       {
-        "tenantId":     "{{tenant_id}}",
-        "resourceType": "{{resource_type}}",
-        "resourceId":   "{{resource_id}}",
+        "tenantId":     "{{ .tenant_id }}",
+        "resourceType": "{{ .resource_type }}",
+        "resourceId":   "{{ .resource_id }}",
         "metrics": {
-          "tag":       {{tag}},
-          "dashboard": {{dashboard}},
-          "user":      {{user}},
-          "eventrule": {{eventrule}}
+          "tag":       {{ .tag }},
+          "dashboard": {{ .dashboard }},
+          "user":      {{ .user }},
+          "eventrule": {{ .eventrule }}
         },
-        "timestamp": {{now_ms}}
+        "timestamp": {{ now_ms }}
       }
     ]
   }

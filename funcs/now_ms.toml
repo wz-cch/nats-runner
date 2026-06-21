@@ -1,0 +1,2 @@
+command = "date +%s%3N"
+desc    = "Current Unix timestamp in milliseconds"

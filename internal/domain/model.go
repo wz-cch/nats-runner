@@ -2,13 +2,8 @@
 // This package has no dependencies on external libraries or other internal packages.
 package domain
 
-// AppConfig is the top-level configuration decoded from config.toml.
-type AppConfig struct {
-	Connection ConnectionConfig  `toml:"connection"`
-	Functions  map[string]string `toml:"functions"`
-}
-
 // ConnectionConfig holds NATS connection and authentication settings.
+// It is decoded from the [connection] section of a configs/<name>.toml file.
 type ConnectionConfig struct {
 	URL          string    `toml:"url"`
 	AuthMode     string    `toml:"auth_mode"`
@@ -28,9 +23,19 @@ type TLSConfig struct {
 	InsecureSkipVerify bool   `toml:"insecure_skip_verify"`
 }
 
-// GlobalConfig is decoded from ~/.nats-runner.toml.
+// GlobalConfig is decoded from ~/.nats-runner.toml. The omitempty tags let the
+// TOML encoder skip unset fields when SaveGlobalConfig writes the file back.
 type GlobalConfig struct {
-	DefaultConfigPath string `toml:"default_config_path"`
+	DefaultConnection string `toml:"default_connection,omitempty"`
+	TemplateDir       string `toml:"template_dir,omitempty"`
+	FuncsDir          string `toml:"funcs_dir,omitempty"`
+	ValuesDir         string `toml:"values_dir,omitempty"`
+}
+
+// FuncConfig corresponds to a single funcs/<name>.toml file.
+type FuncConfig struct {
+	Command string `toml:"command"`
+	Desc    string `toml:"desc"`
 }
 
 // TemplateEntry represents a single API definition within a template TOML file.

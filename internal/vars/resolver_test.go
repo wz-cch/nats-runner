@@ -4,14 +4,24 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"nats-runner/internal/domain"
 )
 
+// ── helpers ────────────────────────────────────────────────────────────────
+
+func ctx(cli map[string]string, vals map[string]any, defs map[string]string, fns map[string]domain.FuncConfig) ResolveContext {
+	return ResolveContext{CLIParams: cli, MergedVals: vals, Defaults: defs, Functions: fns}
+}
+
+// ── data-layer tests ───────────────────────────────────────────────────────
+
 func TestResolve_CLIParams(t *testing.T) {
-	body := `{"id": "{{id}}", "name": "{{name}}"}`
-	result, err := Resolve(body,
+	body := `{"id": "{{ .id }}", "name": "{{ .name }}"}`
+	result, err := Resolve(body, ctx(
 		map[string]string{"id": "123", "name": "Jack"},
-		nil, nil,
-	)
+		nil, nil, nil,
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,12 +31,13 @@ func TestResolve_CLIParams(t *testing.T) {
 }
 
 func TestResolve_CLIOverridesDefaults(t *testing.T) {
-	body := `{"role": "{{role}}"}`
-	result, err := Resolve(body,
+	body := `{"role": "{{ .role }}"}`
+	result, err := Resolve(body, ctx(
 		map[string]string{"role": "admin"},
+		nil,
 		map[string]string{"role": "member"},
 		nil,
-	)
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -35,11 +46,44 @@ func TestResolve_CLIOverridesDefaults(t *testing.T) {
 	}
 }
 
+func TestResolve_CLIOverridesMergedVals(t *testing.T) {
+	body := `{"type": "{{ .srp_type }}"}`
+	result, err := Resolve(body, ctx(
+		map[string]string{"srp_type": "override"},
+		map[string]any{"srp_type": "from-values"},
+		nil, nil,
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "override") {
+		t.Errorf("expected 'override': %s", result)
+	}
+}
+
+func TestResolve_MergedValsOverrideDefaults(t *testing.T) {
+	body := `{"type": "{{ .srp_type }}"}`
+	result, err := Resolve(body, ctx(
+		nil,
+		map[string]any{"srp_type": "from-values"},
+		map[string]string{"srp_type": "from-defaults"},
+		nil,
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "from-values") {
+		t.Errorf("expected 'from-values': %s", result)
+	}
+}
+
 func TestResolve_Defaults(t *testing.T) {
-	body := `{"status": "{{status}}"}`
-	result, err := Resolve(body, nil,
-		map[string]string{"status": "active"}, nil,
-	)
+	body := `{"status": "{{ .status }}"}`
+	result, err := Resolve(body, ctx(
+		nil, nil,
+		map[string]string{"status": "active"},
+		nil,
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,6 +91,8 @@ func TestResolve_Defaults(t *testing.T) {
 		t.Errorf("unexpected result: %s", result)
 	}
 }
+
+// ── function (shell) tests ─────────────────────────────────────────────────
 
 func TestResolve_FunctionCache_SameVarRunsOnce(t *testing.T) {
 	callCount := 0
@@ -57,10 +103,12 @@ func TestResolve_FunctionCache_SameVarRunsOnce(t *testing.T) {
 		return "fixed-uuid", nil
 	}
 
-	body := `{"a": "{{uuid}}", "b": "{{uuid}}"}`
-	result, err := Resolve(body, nil, nil,
-		map[string]string{"uuid": "uuidgen"},
-	)
+	// Shell-function result is stored in data map → both {{ .uuid }} read the same value.
+	body := `{"a": "{{ .uuid }}", "b": "{{ .uuid }}"}`
+	result, err := Resolve(body, ctx(
+		nil, nil, nil,
+		map[string]domain.FuncConfig{"uuid": {Command: "uuidgen"}},
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,10 +129,14 @@ func TestResolve_DifferentVarsSameCommand_RunsIndependently(t *testing.T) {
 		return strings.Repeat("x", callCount), nil
 	}
 
-	body := `{"a": "{{uuid}}", "b": "{{uuid2}}"}`
-	_, err := Resolve(body, nil, nil,
-		map[string]string{"uuid": "uuidgen", "uuid2": "uuidgen"},
-	)
+	body := `{"a": "{{ .uuid }}", "b": "{{ .uuid2 }}"}`
+	_, err := Resolve(body, ctx(
+		nil, nil, nil,
+		map[string]domain.FuncConfig{
+			"uuid":  {Command: "uuidgen"},
+			"uuid2": {Command: "uuidgen"},
+		},
+	))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,10 +152,11 @@ func TestResolve_FunctionFailure(t *testing.T) {
 		return "", fmt.Errorf("exit status 1")
 	}
 
-	body := `{"user": "{{random_user}}"}`
-	_, err := Resolve(body, nil, nil,
-		map[string]string{"random_user": "shuf -n 1 /nonexistent"},
-	)
+	body := `{"user": "{{ .random_user }}"}`
+	_, err := Resolve(body, ctx(
+		nil, nil, nil,
+		map[string]domain.FuncConfig{"random_user": {Command: "shuf -n 1 /nonexistent"}},
+	))
 	if err == nil {
 		t.Fatal("expected error when function fails")
 	}
@@ -112,9 +165,11 @@ func TestResolve_FunctionFailure(t *testing.T) {
 	}
 }
 
+// ── missing key ────────────────────────────────────────────────────────────
+
 func TestResolve_UnresolvedError(t *testing.T) {
-	body := `{"id": "{{missing}}"}`
-	_, err := Resolve(body, nil, nil, nil)
+	body := `{"id": "{{ .missing }}"}`
+	_, err := Resolve(body, ResolveContext{})
 	if err == nil {
 		t.Fatal("expected error for unresolved variable")
 	}
@@ -123,10 +178,12 @@ func TestResolve_UnresolvedError(t *testing.T) {
 	}
 }
 
+// ── builtin tests ──────────────────────────────────────────────────────────
+
 func TestResolve_Builtins(t *testing.T) {
 	for _, name := range []string{"now", "now_ms", "now_iso", "uuid"} {
-		body := `{"ts": "{{` + name + `}}"}`
-		result, err := Resolve(body, nil, nil, nil)
+		body := `{"ts": "{{ ` + name + ` }}"}`
+		result, err := Resolve(body, ResolveContext{})
 		if err != nil {
 			t.Fatalf("unexpected error for %s: %v", name, err)
 		}
@@ -137,17 +194,15 @@ func TestResolve_Builtins(t *testing.T) {
 }
 
 func TestResolve_UUIDBuiltin_Format(t *testing.T) {
-	body := `{"id": "{{uuid}}"}`
-	result, err := Resolve(body, nil, nil, nil)
+	body := `{"id": "{{ uuid }}"}`
+	result, err := Resolve(body, ResolveContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// extract generated uuid value between quotes
 	start := strings.Index(result, `"id": "`) + 7
 	end := strings.LastIndex(result, `"`)
 	got := result[start:end]
 
-	// UUID v4 format: 8-4-4-4-12 hex chars
 	parts := strings.Split(got, "-")
 	if len(parts) != 5 {
 		t.Fatalf("expected 5 parts, got %d: %q", len(parts), got)
@@ -158,26 +213,24 @@ func TestResolve_UUIDBuiltin_Format(t *testing.T) {
 			t.Errorf("part %d: expected length %d, got %d: %q", i, lengths[i], len(p), p)
 		}
 	}
-	// version nibble must be '4'
 	if got[14] != '4' {
 		t.Errorf("expected version nibble '4', got %q", got[14])
 	}
 }
 
 func TestResolve_UUIDBuiltin_UniquePerResolve(t *testing.T) {
-	body := `{"id": "{{uuid}}"}`
-	r1, _ := Resolve(body, nil, nil, nil)
-	r2, _ := Resolve(body, nil, nil, nil)
+	body := `{"id": "{{ uuid }}"}`
+	r1, _ := Resolve(body, ResolveContext{})
+	r2, _ := Resolve(body, ResolveContext{})
 	if r1 == r2 {
 		t.Errorf("two separate Resolve calls should produce different UUIDs: %s", r1)
 	}
 }
 
-func TestResolve_UUIDBuiltin_SameWithinResolve(t *testing.T) {
-	// When uuid is a builtin (not a function), each occurrence gets its own call.
-	// Verify both occurrences are valid UUIDs (no unreplaced placeholders).
-	body := `{"a": "{{uuid}}", "b": "{{uuid}}"}`
-	result, err := Resolve(body, nil, nil, nil)
+func TestResolve_UUIDBuiltin_EachOccurrenceIsValid(t *testing.T) {
+	// Both {{ uuid }} occurrences should be replaced (no unreplaced placeholders).
+	body := `{"a": "{{ uuid }}", "b": "{{ uuid }}"}`
+	result, err := Resolve(body, ResolveContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,13 +239,45 @@ func TestResolve_UUIDBuiltin_SameWithinResolve(t *testing.T) {
 	}
 }
 
+// ── toJson pipe ────────────────────────────────────────────────────────────
+
+func TestResolve_ToJsonPipe(t *testing.T) {
+	body := `{"metrics": {{ .metrics | toJson }}}`
+	result, err := Resolve(body, ctx(
+		nil,
+		map[string]any{"metrics": []any{
+			map[string]any{"field": "tag", "type": "sum"},
+		}},
+		nil, nil,
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, `"field"`) {
+		t.Errorf("expected JSON array in result: %s", result)
+	}
+}
+
+// ── misc ───────────────────────────────────────────────────────────────────
+
 func TestResolve_NoPlaceholders(t *testing.T) {
 	body := `{"static": "value"}`
-	result, err := Resolve(body, nil, nil, nil)
+	result, err := Resolve(body, ResolveContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result != body {
 		t.Errorf("body with no placeholders should be unchanged: %s", result)
+	}
+}
+
+func TestResolve_ConditionalBlock(t *testing.T) {
+	body := `{{ if .enabled }}on{{ else }}off{{ end }}`
+	result, err := Resolve(body, ctx(nil, map[string]any{"enabled": true}, nil, nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "on" {
+		t.Errorf("expected 'on', got %q", result)
 	}
 }

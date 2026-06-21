@@ -1,0 +1,2 @@
+command = "uuidgen"
+desc    = "Generate a random UUID v4"

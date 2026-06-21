@@ -9,29 +9,23 @@ import (
 	"nats-runner/internal/domain"
 )
 
-// BuildOptions constructs a slice of nats.Option from the AppConfig,
+// BuildOptions constructs a slice of nats.Option from a ConnectionConfig,
 // covering authentication (creds / token / nkey) and optional TLS.
-func BuildOptions(cfg *domain.AppConfig) ([]natsgo.Option, error) {
+//
+// Required-field presence (e.g. creds_file for auth_mode "creds") is validated
+// once at load time by config.validateAuthMode; this function trusts that and
+// only translates the settings into nats.Option values.
+func BuildOptions(conn *domain.ConnectionConfig) ([]natsgo.Option, error) {
 	var opts []natsgo.Option
-	conn := cfg.Connection
 
 	switch conn.AuthMode {
 	case "creds":
-		if conn.CredsFile == "" {
-			return nil, fmt.Errorf("auth_mode is 'creds' but creds_file is not set")
-		}
 		opts = append(opts, natsgo.UserCredentials(conn.CredsFile))
 
 	case "token":
-		if conn.Token == "" {
-			return nil, fmt.Errorf("auth_mode is 'token' but token is not set")
-		}
 		opts = append(opts, natsgo.Token(conn.Token))
 
 	case "nkey":
-		if conn.NKeySeedFile == "" {
-			return nil, fmt.Errorf("auth_mode is 'nkey' but nkey_seed_file is not set")
-		}
 		// NkeyOptionFromSeed reads the .nk seed file and automatically derives the
 		// public key for signing — no separate public key file is required.
 		opt, err := natsgo.NkeyOptionFromSeed(conn.NKeySeedFile)
