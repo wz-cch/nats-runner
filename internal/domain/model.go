@@ -2,13 +2,15 @@
 // This package has no dependencies on external libraries or other internal packages.
 package domain
 
-// AppConfig is the top-level configuration decoded from config.toml.
+// AppConfig is the runtime-assembled application configuration passed to the
+// NATS connection layer. Shell functions are resolved separately via the vars
+// package and are not part of this struct.
 type AppConfig struct {
-	Connection ConnectionConfig  `toml:"connection"`
-	Functions  map[string]string `toml:"functions"`
+	Connection ConnectionConfig
 }
 
 // ConnectionConfig holds NATS connection and authentication settings.
+// It is decoded from the [connection] section of a configs/<name>.toml file.
 type ConnectionConfig struct {
 	URL          string    `toml:"url"`
 	AuthMode     string    `toml:"auth_mode"`
@@ -30,7 +32,16 @@ type TLSConfig struct {
 
 // GlobalConfig is decoded from ~/.nats-runner.toml.
 type GlobalConfig struct {
-	DefaultConfigPath string `toml:"default_config_path"`
+	DefaultConnection string `toml:"default_connection"`
+	TemplateDir       string `toml:"template_dir"`
+	FuncsDir          string `toml:"funcs_dir"`
+	ValuesDir         string `toml:"values_dir"`
+}
+
+// FuncConfig corresponds to a single funcs/<name>.toml file.
+type FuncConfig struct {
+	Command string `toml:"command"`
+	Desc    string `toml:"desc"`
 }
 
 // TemplateEntry represents a single API definition within a template TOML file.

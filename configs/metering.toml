@@ -3,6 +3,3 @@ url       = "nats://nats-cluster.example.com:4222"
 auth_mode = "creds"
 creds_file = "./auth/user.creds"
 timeout_ms = 5000
-
-[functions]
-uuid = "uuidgen"

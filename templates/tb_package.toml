@@ -1,7 +1,7 @@
 # TwinBuilder / tb-package 一體化模板
 # 涵蓋：ResourceType(twinbuilder)、SRPType(tb-package)、Usage Stats 全部 CRUD + 查詢 + 上報
 #
-# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）
+# 內建變數：{{ uuid }}（UUID v4）、{{ now_ms }}（epoch ms）
 #
 # ── 快速上手 ─────────────────────────────────────────────────────
 #
@@ -54,15 +54,15 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder", description = "TwinBuilder resource", metric_field = "datapoints", metric_type = "sum" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}",
-    "description":  "{{description}}",
+    "resourceType": "{{ .resource_type }}",
+    "description":  "{{ .description }}",
     "metrics": [
       {
-        "field": "{{metric_field}}",
-        "type":  "{{metric_type}}"
+        "field": "{{ .metric_field }}",
+        "type":  "{{ .metric_type }}"
       }
     ]
   }
@@ -78,10 +78,10 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}"
+    "resourceType": "{{ .resource_type }}"
   }
 }
 """
@@ -94,8 +94,8 @@ subject = "eco1j.infra.metering.resource-types.list"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {}
 }
 """
@@ -109,11 +109,11 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}",
-    "description":  "{{description}}"
+    "resourceType": "{{ .resource_type }}",
+    "description":  "{{ .description }}"
   }
 }
 """
@@ -127,10 +127,10 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}"
+    "resourceType": "{{ .resource_type }}"
   }
 }
 """
@@ -148,16 +148,16 @@ mode     = "req"
 defaults = { srp_type = "tb-package", description = "TwinBuilder package", resource1 = "twinbuilder", metric_field = "datapoints", metric_type = "sum" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}",
-    "resources":   ["{{resource1}}"],
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }},
+    "resources":   ["{{ .resource1 }}"],
     "metrics": [
       {
-        "field": "{{metric_field}}",
-        "type":  "{{metric_type}}"
+        "field": "{{ .metric_field }}",
+        "type":  "{{ .metric_type }}"
       }
     ]
   }
@@ -173,10 +173,10 @@ mode     = "req"
 defaults = { srp_type = "tb-package" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """
@@ -189,8 +189,8 @@ subject = "eco1j.infra.metering.srp-types.list"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {}
 }
 """
@@ -204,11 +204,11 @@ mode     = "req"
 defaults = { srp_type = "tb-package" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}"
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }}
   }
 }
 """
@@ -222,10 +222,10 @@ mode     = "req"
 defaults = { srp_type = "tb-package" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """
@@ -244,14 +244,14 @@ mode     = "req"
 defaults = { srp_type = "tb-package", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":        "{{srp_type}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "srpType":        "{{ .srp_type }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -266,15 +266,15 @@ mode     = "req"
 defaults = { srp_type = "tb-package", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":        "{{srp_type}}",
-    "tenantId":       "{{tenant_id}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "srpType":        "{{ .srp_type }}",
+    "tenantId":       "{{ .tenant_id }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -293,14 +293,14 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType":   "{{resource_type}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "resourceType":   "{{ .resource_type }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -315,15 +315,15 @@ mode     = "req"
 defaults = { resource_type = "twinbuilder", skip_count = "0", max_result_count = "20" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType":   "{{resource_type}}",
-    "tenantId":       "{{tenant_id}}",
-    "startTime":      "{{start_time}}",
-    "endTime":        "{{end_time}}",
-    "skipCount":      {{skip_count}},
-    "maxResultCount": {{max_result_count}}
+    "resourceType":   "{{ .resource_type }}",
+    "tenantId":       "{{ .tenant_id }}",
+    "startTime":      "{{ .start_time }}",
+    "endTime":        "{{ .end_time }}",
+    "skipCount":      {{ .skip_count }},
+    "maxResultCount": {{ .max_result_count }}
   }
 }
 """
@@ -343,18 +343,18 @@ mode     = "js"
 defaults = { resource_type = "twinbuilder", resource_id = "tb-package" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
     "usages": [
       {
-        "tenantId":     "{{tenant_id}}",
-        "resourceType": "{{resource_type}}",
-        "resourceId":   "{{resource_id}}",
+        "tenantId":     "{{ .tenant_id }}",
+        "resourceType": "{{ .resource_type }}",
+        "resourceId":   "{{ .resource_id }}",
         "metrics": {
-          "datapoints": {{datapoints}}
+          "datapoints": {{ .datapoints }}
         },
-        "timestamp": {{now_ms}}
+        "timestamp": {{ now_ms }}
       }
     ]
   }

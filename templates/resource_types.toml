@@ -1,5 +1,5 @@
 # ResourceType 管理模板
-# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）、{{now_iso}}（RFC3339）、{{now}}（epoch s）
+# 內建變數：{{ uuid }}（UUID v4）、{{ now_ms }}（epoch ms）、{{ now_iso }}（RFC3339）、{{ now }}（epoch s）
 #
 # 使用範例：
 #   ./nats-runner -t templates/resource_types.toml -n create resource_type=compute description="運算資源" metric_field=vcpu_count
@@ -17,15 +17,15 @@ mode    = "req"
 defaults = { metric_type = "sum" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}",
-    "description":  "{{description}}",
+    "resourceType": "{{ .resource_type }}",
+    "description":  "{{ .description }}",
     "metrics": [
       {
-        "field": "{{metric_field}}",
-        "type":  "{{metric_type}}"
+        "field": "{{ .metric_field }}",
+        "type":  "{{ .metric_type }}"
       }
     ]
   }
@@ -40,10 +40,10 @@ subject = "eco1j.infra.metering.resource-types.get"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}"
+    "resourceType": "{{ .resource_type }}"
   }
 }
 """
@@ -56,8 +56,8 @@ subject = "eco1j.infra.metering.resource-types.list"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {}
 }
 """
@@ -70,11 +70,11 @@ subject = "eco1j.infra.metering.resource-types.update"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}",
-    "description":  "{{description}}"
+    "resourceType": "{{ .resource_type }}",
+    "description":  "{{ .description }}"
   }
 }
 """
@@ -88,10 +88,10 @@ subject = "eco1j.infra.metering.resource-types.delete"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "resourceType": "{{resource_type}}"
+    "resourceType": "{{ .resource_type }}"
   }
 }
 """

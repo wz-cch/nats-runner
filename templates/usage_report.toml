@@ -1,5 +1,5 @@
 # Usage Report 通用上報模板（JetStream Fire-and-Forget）
-# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）
+# 內建變數：{{ uuid }}（UUID v4）、{{ now_ms }}（epoch ms）
 #
 # ── 欄位說明 ─────────────────────────────────────────────────────
 #   tenant_id     租戶 ID
@@ -30,18 +30,18 @@ subject = "eco1j.infra.metering.usage.create"
 mode    = "js"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
     "usages": [
       {
-        "tenantId":     "{{tenant_id}}",
-        "resourceType": "{{resource_type}}",
-        "resourceId":   "{{resource_id}}",
+        "tenantId":     "{{ .tenant_id }}",
+        "resourceType": "{{ .resource_type }}",
+        "resourceId":   "{{ .resource_id }}",
         "metrics": {
-          "{{metric_key}}": {{metric_value}}
+          "{{ .metric_key }}": {{ .metric_value }}
         },
-        "timestamp": {{now_ms}}
+        "timestamp": {{ now_ms }}
       }
     ]
   }
@@ -64,21 +64,21 @@ subject = "eco1j.infra.metering.usage.create"
 mode    = "js"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
     "usages": [
       {
-        "tenantId":     "{{tenant_id}}",
-        "resourceType": "{{resource_type}}",
-        "resourceId":   "{{resource_id}}",
+        "tenantId":     "{{ .tenant_id }}",
+        "resourceType": "{{ .resource_type }}",
+        "resourceId":   "{{ .resource_id }}",
         "metrics": {
-          "{{metric_key}}": {{metric_value}}
+          "{{ .metric_key }}": {{ .metric_value }}
         },
         "metadata": {
-          "{{meta_key}}": "{{meta_value}}"
+          "{{ .meta_key }}": "{{ .meta_value }}"
         },
-        "timestamp": {{now_ms}}
+        "timestamp": {{ now_ms }}
       }
     ]
   }

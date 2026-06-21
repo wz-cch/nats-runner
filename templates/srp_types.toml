@@ -1,5 +1,8 @@
 # SRPType 管理模板
-# 內建變數：{{uuid}}（UUID v4）、{{now_ms}}（epoch ms）、{{now_iso}}（RFC3339）、{{now}}（epoch s）
+# 內建變數：{{ uuid }}（UUID v4）、{{ now_ms }}（epoch ms）、{{ now_iso }}（RFC3339）、{{ now }}（epoch s）
+#
+# JSON 安全：自由文字欄位請用 {{ .field | toJson }}（會自動加引號並跳脫），
+#           避免值含 " \ 或換行時破壞 JSON。例如 description 即採此寫法。
 #
 # 使用範例（建立含 2 個 resource 的 SRPType）：
 #   ./nats-runner -t templates/srp_types.toml -n create \
@@ -24,16 +27,16 @@ mode    = "req"
 defaults = { metric_type = "sum" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}",
-    "resources":   ["{{resource1}}", "{{resource2}}"],
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }},
+    "resources":   ["{{ .resource1 }}", "{{ .resource2 }}"],
     "metrics": [
       {
-        "field": "{{metric_field}}",
-        "type":  "{{metric_type}}"
+        "field": "{{ .metric_field }}",
+        "type":  "{{ .metric_type }}"
       }
     ]
   }
@@ -51,13 +54,13 @@ mode    = "req"
 defaults = { }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}",
-    "resources":   [{{resource_list}}],
-    "metrics": {{metrics}}
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }},
+    "resources":   [{{ .resource_list }}],
+    "metrics": {{ .metrics }}
   }
 }
 """
@@ -71,16 +74,16 @@ mode    = "req"
 defaults = { metric_type = "sum" }
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}",
-    "resources":   ["{{resource1}}"],
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }},
+    "resources":   ["{{ .resource1 }}"],
     "metrics": [
       {
-        "field": "{{metric_field}}",
-        "type":  "{{metric_type}}"
+        "field": "{{ .metric_field }}",
+        "type":  "{{ .metric_type }}"
       }
     ]
   }
@@ -95,10 +98,10 @@ subject = "eco1j.infra.metering.srp-types.get"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """
@@ -111,8 +114,8 @@ subject = "eco1j.infra.metering.srp-types.list"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {}
 }
 """
@@ -125,11 +128,11 @@ subject = "eco1j.infra.metering.srp-types.update"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType":     "{{srp_type}}",
-    "description": "{{description}}"
+    "srpType":     "{{ .srp_type }}",
+    "description": {{ .description | toJson }}
   }
 }
 """
@@ -142,10 +145,10 @@ subject = "eco1j.infra.metering.srp-types.delete"
 mode    = "req"
 body = """
 {
-  "reqSeqId":  "{{uuid}}",
-  "timestamp": {{now_ms}},
+  "reqSeqId":  "{{ uuid }}",
+  "timestamp": {{ now_ms }},
   "data": {
-    "srpType": "{{srp_type}}"
+    "srpType": "{{ .srp_type }}"
   }
 }
 """

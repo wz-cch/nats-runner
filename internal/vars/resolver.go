@@ -1,18 +1,22 @@
-// Package vars implements the four-level variable resolution engine.
+// Package vars implements the five-level variable resolution engine
+// backed by Go text/template.
 package vars
 
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"os/exec"
-	"regexp"
+	"sort"
+	"strconv"
 	"strings"
+	"text/template"
+	"text/template/parse"
 	"time"
-)
 
-// varPattern matches {{word}} placeholders in a template body.
-var varPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
+	"nats-runner/internal/domain"
+)
 
 // runShellFn is a package-level variable to allow replacement in tests.
 var runShellFn = func(cmd string) (string, error) {
@@ -26,90 +30,203 @@ var runShellFn = func(cmd string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// Resolve replaces all {{var}} placeholders in body using the four-level priority:
+// ResolveContext encapsulates all data sources for the five-layer resolution.
+// Priority order (lowest → highest):
+//  1. builtins (FuncMap: uuid, now, now_ms, now_iso, toJson, trim)
+//  2. Functions — shell results, executed once per referenced key, cached in data map
+//  3. Defaults  — static strings from template entry
+//  4. MergedVals — loaded from --values files
+//  5. CLIParams — highest priority, key=value from command line / TUI inputs
 //
-//  1. cliParams   — key=value pairs supplied on the command line (highest priority)
-//  2. defaults    — static defaults declared in the template
-//  3. functions   — shell command results from [functions] in config.toml
-//  4. builtins    — now / now_ms / now_iso (lowest priority)
-//
-// Function results are cached by variable name for the duration of this call:
-//   - Two occurrences of {{uuid}} produce the same value (command runs once).
-//   - {{uuid}} and {{uuid2}} each run their own command independently.
-//
-// Returns an error for any unresolved placeholder or failed function command.
-func Resolve(
-	body string,
-	cliParams map[string]string,
-	defaults map[string]string,
-	functions map[string]string,
-) (string, error) {
-	cache := make(map[string]string)
-	var firstErr error
-
-	result := varPattern.ReplaceAllStringFunc(body, func(match string) string {
-		if firstErr != nil {
-			return match
-		}
-		name := match[2 : len(match)-2] // strip {{ and }}
-
-		// Priority 1: CLI params
-		if v, ok := cliParams[name]; ok {
-			return v
-		}
-		// Priority 2: Template defaults
-		if defaults != nil {
-			if v, ok := defaults[name]; ok {
-				return v
-			}
-		}
-		// Priority 3: Config functions (cached per variable name)
-		if functions != nil {
-			if cmd, ok := functions[name]; ok {
-				if cached, hit := cache[name]; hit {
-					return cached
-				}
-				out, err := runShellFn(cmd)
-				if err != nil {
-					firstErr = fmt.Errorf("function %q failed: %w", name, err)
-					return match
-				}
-				cache[name] = out
-				return out
-			}
-		}
-		// Priority 4: Built-in variables
-		if v, ok := resolveBuiltin(name); ok {
-			return v
-		}
-
-		firstErr = fmt.Errorf(
-			"variable %q is not defined. Provide it via CLI params, template defaults, or config functions",
-			name,
-		)
-		return match
-	})
-
-	if firstErr != nil {
-		return "", firstErr
-	}
-	return result, nil
+// When Preview is true, shell functions are NOT executed; their values are
+// replaced with a "<func:NAME>" placeholder so the payload can be rendered
+// cheaply and without side effects (used by the interactive preview pane).
+type ResolveContext struct {
+	CLIParams  map[string]string
+	MergedVals map[string]any
+	Defaults   map[string]string
+	Functions  map[string]domain.FuncConfig
+	Preview    bool
 }
 
-// resolveBuiltin returns values for the built-in variable names.
-func resolveBuiltin(name string) (string, bool) {
-	now := time.Now().UTC()
-	switch name {
-	case "now":
-		return fmt.Sprintf("%d", now.Unix()), true
-	case "now_ms":
-		return fmt.Sprintf("%d", now.UnixMilli()), true
-	case "now_iso":
-		return now.Format(time.RFC3339), true
-	case "uuid":
-		return newUUID(), true
+// Resolve renders body through Go text/template using the five-layer priority.
+//
+// Syntax conventions:
+//   - Data variables (from any layer): {{ .key }}
+//   - Built-in functions:              {{ uuid }}, {{ now }}, {{ now_ms }}, {{ now_iso }}
+//   - Pipe helpers:                    {{ .arr | toJson }}, {{ .s | trim }}
+//
+// A missing data key causes an error (missingkey=error). When the rendered
+// output looks like JSON, it is validated and a clear error is returned if it
+// is malformed (commonly an unescaped string value — use {{ .field | toJson }}).
+func Resolve(body string, ctx ResolveContext) (string, error) {
+	tmpl, err := template.New("body").
+		Funcs(buildFuncMap()).
+		Option("missingkey=error").
+		Parse(body)
+	if err != nil {
+		return "", fmt.Errorf("template parse error: %w", err)
 	}
-	return "", false
+
+	referenced := referencedFields(tmpl)
+	data, err := buildDataMap(ctx, referenced)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("template render error: %w", err)
+	}
+	out := buf.String()
+
+	if looksLikeJSON(out) && !json.Valid([]byte(out)) {
+		return "", fmt.Errorf(
+			"rendered payload is not valid JSON; check that string values are escaped "+
+				"(e.g. use {{ .field | toJson }} for free-text fields):\n%s", out)
+	}
+	return out, nil
+}
+
+// ReferencedVars returns the sorted, unique data-variable names ({{ .key }})
+// referenced by body. Built-in function calls ({{ uuid }} etc.) are not data
+// variables and are excluded. Used by the TUI to discover which inputs a
+// template entry needs.
+func ReferencedVars(body string) ([]string, error) {
+	tmpl, err := template.New("body").Funcs(buildFuncMap()).Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("template parse error: %w", err)
+	}
+	set := referencedFields(tmpl)
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// buildDataMap constructs the merged data map. Shell functions are executed
+// only when their key is referenced by the body (lazy), each at most once.
+func buildDataMap(ctx ResolveContext, referenced map[string]bool) (map[string]any, error) {
+	data := make(map[string]any)
+
+	// Level 2: shell functions (lowest data priority) — only those referenced.
+	for k, fc := range ctx.Functions {
+		if !referenced[k] {
+			continue
+		}
+		if ctx.Preview {
+			data[k] = "<func:" + k + ">"
+			continue
+		}
+		out, err := runShellFn(fc.Command)
+		if err != nil {
+			return nil, fmt.Errorf("function %q failed: %w", k, err)
+		}
+		data[k] = out
+	}
+
+	// Level 3: template defaults
+	for k, v := range ctx.Defaults {
+		data[k] = v
+	}
+
+	// Level 4: merged values
+	for k, v := range ctx.MergedVals {
+		data[k] = v
+	}
+
+	// Level 5: CLI params (highest priority)
+	for k, v := range ctx.CLIParams {
+		data[k] = v
+	}
+
+	return data, nil
+}
+
+// referencedFields walks the parsed template tree and returns the set of
+// top-level data-variable identifiers ({{ .key }} → "key").
+func referencedFields(tmpl *template.Template) map[string]bool {
+	set := make(map[string]bool)
+	if tmpl.Tree != nil && tmpl.Tree.Root != nil {
+		collectFields(tmpl.Tree.Root, set)
+	}
+	return set
+}
+
+// collectFields recursively collects FieldNode identifiers from a parse tree.
+func collectFields(node parse.Node, set map[string]bool) {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return
+		}
+		for _, c := range n.Nodes {
+			collectFields(c, set)
+		}
+	case *parse.ActionNode:
+		collectFields(n.Pipe, set)
+	case *parse.PipeNode:
+		if n == nil {
+			return
+		}
+		for _, c := range n.Cmds {
+			collectFields(c, set)
+		}
+	case *parse.CommandNode:
+		for _, a := range n.Args {
+			collectFields(a, set)
+		}
+	case *parse.FieldNode:
+		if len(n.Ident) > 0 {
+			set[n.Ident[0]] = true
+		}
+	case *parse.IfNode:
+		collectFields(n.Pipe, set)
+		collectFields(n.List, set)
+		collectFields(n.ElseList, set)
+	case *parse.RangeNode:
+		collectFields(n.Pipe, set)
+		collectFields(n.List, set)
+		collectFields(n.ElseList, set)
+	case *parse.WithNode:
+		collectFields(n.Pipe, set)
+		collectFields(n.List, set)
+		collectFields(n.ElseList, set)
+	}
+}
+
+// looksLikeJSON reports whether s appears to be a JSON object or array.
+func looksLikeJSON(s string) bool {
+	t := strings.TrimSpace(s)
+	return strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[")
+}
+
+// buildFuncMap returns the FuncMap for built-in template functions.
+// now/now_ms/now_iso are captured at call time so they stay consistent within
+// a single Resolve call; uuid generates a fresh value on every occurrence.
+func buildFuncMap() template.FuncMap {
+	now := time.Now().UTC()
+	return template.FuncMap{
+		"uuid":    newUUID,
+		"now":     func() string { return strconv.FormatInt(now.Unix(), 10) },
+		"now_ms":  func() string { return strconv.FormatInt(now.UnixMilli(), 10) },
+		"now_iso": func() string { return now.Format(time.RFC3339) },
+		"toJson":  toJsonFn,
+		"trim":    strings.TrimSpace,
+	}
+}
+
+// toJsonFn marshals v to a JSON string for use as a template pipe.
+// For a plain string it yields a properly quoted and escaped JSON string,
+// making it the recommended way to embed free-text values into a JSON body.
+func toJsonFn(v any) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("toJson: %w", err)
+	}
+	return string(b), nil
 }
 
 // newUUID generates a random UUID v4 using crypto/rand.

@@ -2,6 +2,15 @@
 
 # 專案開發設計文件：nats-runner
 
+> ⚠️ **本文件為初版設計理念紀錄，部分內容已被實作演進取代。**
+> 目前實際行為以 [README.md](README.md) / [AGENTS.md](AGENTS.md) / [dev-spec.md](dev-spec.md) 為準。
+> 主要差異：
+> - 變數語法改用 Go `text/template`：資料變數 `{{ .var }}`、內建函式 `{{ uuid }}`（不再是無點的 `{{var}}`）。
+> - 解析改為**五層**：CLI > `--values` 檔 > defaults > 函式 > 內建（新增 `--values` 層）。
+> - 連線以**名稱**管理（`-c <name>` → `configs/<name>.toml`）；`~/.nats-runner.toml` 為全域設定，函式移至 `funcs/*.toml`。
+> - 內建 `{{ uuid }}` 每次出現都產生新值（非快取）。
+> - 新增互動式雙欄 TUI、`--loop`/`--interval` 與每次執行紀錄檔。
+
 ## 1. 專案概述 (Project Overview)
 `nats-runner` 是一個專為開發與運維設計的輕量級 NATS 請求執行工具。其目標是提供類似於 RESTful 環境下 Swagger 的體驗，讓使用者能在不依賴任何 Runtime（如 Python/Node.js）的跳板機環境中，透過**模組化模板**與**參數化輸入**，快速發送 NATS 訊息並獲取回覆。
 
@@ -133,26 +142,34 @@ max_msgs        = -1             # 最大訊息數量；-1 = 不限制
 
 ## 4. 變數替換系統 (Variable System)
 
-### 4.1 替換優先級 (Priority)
-當程式發現 `body` 中有 `{{var}}` 時，按以下順序搜尋值（由高到低）：
+### 4.1 替換優先級 (Priority) — 現行為五層
+> 語法已改為 Go `text/template`：資料變數寫成 `{{ .var }}`（含前綴點），內建函式寫成 `{{ uuid }}`（無點）。
+
+`body` render 時，資料變數依以下順序解析（由高到低）：
 1. **CLI Params**：指令末端傳入的 `key=value` $\rightarrow$ **最高優先級**。
-2. **Template Defaults**：模板中 `defaults` 表定義的值。
-3. **Config Functions**：`config.toml` 中 `[functions]` 定義的 Shell 指令輸出。
-4. **Built-in Variables**：程式內建的保留字，無需任何設定即可使用（詳見 4.2 節清單）。
+2. **Values 檔**：`--values` 載入的 `.toml`/`.json`（可重複，後者優先）。
+3. **Template Defaults**：模板中 `defaults` 表定義的值。
+4. **Shell Functions**：`funcs/*.toml` 定義的 Shell 指令輸出（以 `{{ .name }}` 引用，僅在被引用時執行）。
+5. **Built-in Functions**：程式內建函式（詳見 4.2 節清單）。
 
-### 4.2 內建變數清單 (Built-in Variables)
+### 4.2 內建函式清單 (Built-in Functions)
 
-| 變數名稱 | 說明 | 輸出範例 |
+| 函式 | 說明 | 輸出範例 |
 | :--- | :--- | :--- |
-| `{{now}}` | 當前 Unix 時間戳（秒，UTC） | `1747526400` |
-| `{{now_ms}}` | 當前 Unix 時間戳（毫秒，UTC） | `1747526400123` |
-| `{{now_iso}}` | 當前 UTC 時間（ISO 8601） | `2026-05-18T00:00:00Z` |
+| `{{ uuid }}` | 隨機 UUID v4（**每次出現都產生新值**） | `e1c2…` |
+| `{{ now }}` | 當前 Unix 時間戳（秒，UTC） | `1747526400` |
+| `{{ now_ms }}` | 當前 Unix 時間戳（毫秒，UTC） | `1747526400123` |
+| `{{ now_iso }}` | 當前 UTC 時間（ISO 8601） | `2026-05-18T00:00:00Z` |
+
+亦提供 pipe helper：`{{ .arr | toJson }}`、`{{ .s | trim }}`。自由文字欄位請用 `{{ .field | toJson }}` 以確保 JSON 合法。
 
 ### 4.3 變數處理流程
 
-> **Function 快取規則**（快取以**變數名稱**為 key，僅存活於單次執行，重新執行工具均從零開始）：
-> - `body` 中兩處 `{{uuid}}` → `uuidgen` 只執行**一次**，兩處填入相同值。
-> - `{{uuid}}` 與 `{{uuid2}}` 各自獨立快取，即使都對應 `uuidgen`，也各自執行**一次**，產生不同值。
+> **現行規則：**
+> - 內建 `{{ uuid }}`：**每次出現都產生新值**（兩處 `{{ uuid }}` 會不同）。
+> - Shell 函式（`{{ .name }}`）：結果在單次 render 存一份，故同一 body 中多處 `{{ .name }}` 相同；
+>   若想要「同一 UUID 重複使用」，請用 `funcs/uuid.toml` 並以 `{{ .uuid }}` 引用。
+> - 函式只在 body 有引用時才執行（lazy），單次執行只跑一次。
 
 1. 掃描 `body` 內容，收集所有 `{{var}}` 佔位符。
 2. 對於每個 `{{var}}`，依 4.1 節優先級尋找對應值。
